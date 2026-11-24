@@ -18,7 +18,7 @@
     .container { background: white; padding: 20px 15px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05); max-width: 800px; margin: 0 auto; }
     h1 { color: #2c3e50; margin: 0 0 15px 0; font-size: 1.6em; text-align: center; }
     .tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid var(--card-border); flex-wrap: wrap; }
-    .tab { flex: 1; min-width: 70px; text-align: center; padding: 10px 2px; cursor: pointer; font-weight: bold; color: #888; font-size: 0.85em; }
+    .tab { flex: 1; min-width: 60px; text-align: center; padding: 10px 2px; cursor: pointer; font-weight: bold; color: #888; font-size: 0.8em; }
     .tab.active { color: var(--primary-dark); border-bottom: 3px solid var(--primary-dark); background-color: #fef9e7; border-radius: 8px 8px 0 0; }
     .tab-content { display: none; } .tab-content.active { display: block; }
     h2 { font-size: 1.2em; padding-left: 8px; margin: 25px 0 10px 0; }
@@ -38,7 +38,6 @@
     .sales-card { background: #fff; border: 1px solid #e5e7e9; padding: 12px 8px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
     .sales-card .title { font-size: 0.8em; color: #666; font-weight: bold; margin-bottom: 5px; }
     .sales-card .amt { font-size: 1.2em; font-weight: 900; color: #b9770e; }
-    .stock-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f2f3f4; }
     .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
     .report-table th, .report-table td { border: 1px solid #e5e7e9; padding: 8px; text-align: center; }
     .report-table th { background-color: #fef9e7; color: #b9770e; } .total-highlight { font-weight: bold; color: #c0392b; background-color: #fdedec; }
@@ -52,6 +51,15 @@
     .danger-zone { border: 2px dashed #e53e3e; background: #fff5f5; padding: 20px; border-radius: 12px; margin-top: 20px; }
     .cost-item { background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e0e0e0; }
     .cost-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .stock-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f2f3f4; }
+    
+    /* 目標進度條樣式 */
+    .progress-container { width: 100%; background-color: #e5e7e9; border-radius: 10px; margin: 15px 0; overflow: hidden; height: 24px; position: relative; }
+    .progress-bar { height: 100%; background-color: #27ae60; transition: width 0.5s ease-in-out; }
+    .progress-text { position: absolute; width: 100%; text-align: center; top: 3px; font-size: 0.85em; font-weight: bold; color: #fff; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+    .target-box { background: #fdfefe; border: 2px solid #f39c12; border-radius: 10px; padding: 15px; text-align: center; margin-bottom: 10px; }
+    .target-box.weekday { border-color: #3498db; }
+    .target-box.weekend { border-color: #e74c3c; }
 </style>
 </head>
 <body>
@@ -61,11 +69,12 @@
 <div class="sync-banner" id="syncStatus">⏳ 初始化雲端資料庫...</div>
 
 <div class="tabs">
-    <div class="tab active" onclick="switchTab('tab-input')">✍️ 進貨記帳</div>
-    <div class="tab" onclick="switchTab('tab-stock')">📋 每日盤點</div>
-    <div class="tab" onclick="switchTab('tab-fixedcost')">💰 成本與營收</div>
-    <div class="tab" onclick="switchTab('tab-history')">📅 每月結算</div>
-    <div class="tab" onclick="switchTab('tab-maintenance')">⚙️ 系統設定</div>
+    <div class="tab active" onclick="switchTab('tab-input')">✍️ 進貨</div>
+    <div class="tab" onclick="switchTab('tab-stock')">📋 盤點</div>
+    <div class="tab" onclick="switchTab('tab-fixedcost')">💰 財務</div>
+    <div class="tab" onclick="switchTab('tab-target')">🎯 目標</div>
+    <div class="tab" onclick="switchTab('tab-history')">📅 結算</div>
+    <div class="tab" onclick="switchTab('tab-maintenance')">⚙️ 設定</div>
 </div>
 
 <!-- 進貨記帳 -->
@@ -120,6 +129,76 @@
 
     <h3 style="margin-top: 30px;">📋 財務歷史記錄</h3>
     <div id="financeList"></div>
+</div>
+
+<!-- 營收目標 -->
+<div id="tab-target" class="tab-content">
+    <h2 style="color: #8e44ad; border-left: 4px solid #8e44ad;">🎯 營收目標與落點分析</h2>
+    <p style="font-size:0.85em; color:#666;">※ 設定預期利潤與成本，系統將自動為您規劃每日應達標的營業額。</p>
+    
+    <div class="card" style="background: #fbf9ff; border-color: #e8d7f5;">
+        <div class="form-group"><label>📅 目標月份：</label><input type="month" id="targetMonth" onchange="calculateTarget()"></div>
+        
+        <div class="form-group">
+            <label>📉 預估總成本 ($)：</label>
+            <div style="display:flex; gap:10px;">
+                <input type="number" id="targetCost" placeholder="包含進貨與固定成本">
+                <button class="btn" style="margin:0; width:auto; white-space:nowrap; background:#9b59b6;" onclick="autoFillCost()">自動帶入本月已知成本</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>💰 預期淨利潤 ($)：</label>
+            <div style="display:flex; gap:10px;">
+                <input type="number" id="targetProfit" placeholder="您這個月想賺多少錢？">
+                <button class="btn" style="margin:0; width:auto; white-space:nowrap; background:#8e44ad;" onclick="autoSetProfit()">自動建議目標 (抓30%淨利)</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>⚖️ 假日營收倍數：</label>
+            <select id="targetRatio">
+                <option value="1">平假日差不多 (1倍)</option>
+                <option value="1.5">假日稍微好一點 (1.5倍)</option>
+                <option value="2" selected>假日是平日的兩倍 (2倍)</option>
+                <option value="2.5">假日是平日的2.5倍</option>
+                <option value="3">假日是平日的三倍 (3倍)</option>
+            </select>
+            <div style="font-size:0.8em; color:#888; margin-top:5px;">※ 系統定義：週五、週六為假日，週日到週四為平日。</div>
+        </div>
+
+        <button class="btn" style="background: #2c3e50; margin-top: 15px;" onclick="calculateTarget()">📊 執行目標運算</button>
+    </div>
+
+    <div id="targetResultContainer" style="display:none;">
+        <h3 style="margin-top: 25px;">📈 本月目標解析 <span id="lblTargetMonth" style="color:#8e44ad;"></span></h3>
+        
+        <div class="target-box">
+            <div style="font-size:0.9em; color:#666; font-weight:bold;">🏆 本月總營收目標</div>
+            <div style="font-size:2em; font-weight:900; color:#f39c12;" id="resTotalTarget">$0</div>
+            <div style="font-size:0.85em; color:#888; margin-top:5px;">(預估成本 $<span id="resCost">0</span> + 預期利潤 $<span id="resProfit">0</span>)</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="target-box weekday">
+                <div style="font-size:0.85em; color:#666; font-weight:bold;">☕ 平日每日目標</div>
+                <div style="font-size:1.5em; font-weight:900; color:#3498db;" id="resWeekdayTarget">$0</div>
+                <div style="font-size:0.8em; color:#888; margin-top:5px;">(週日~週四，共 <span id="resWeekdayCount">0</span> 天)</div>
+            </div>
+            <div class="target-box weekend">
+                <div style="font-size:0.85em; color:#666; font-weight:bold;">🍻 假日每日目標</div>
+                <div style="font-size:1.5em; font-weight:900; color:#e74c3c;" id="resWeekendTarget">$0</div>
+                <div style="font-size:0.8em; color:#888; margin-top:5px;">(週五~週六，共 <span id="resWeekendCount">0</span> 天)</div>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 25px;">🚀 目前達成率</h3>
+        <div style="font-size:0.9em; text-align:right; color:#555;">已達成：<strong style="color:#27ae60;" id="resCurrentRev">$0</strong> / 目標：<strong id="resTargetRev">$0</strong></div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+    </div>
 </div>
 
 <!-- 每月結算 -->
@@ -184,6 +263,11 @@ async function fetchCloudData() {
             
             localStorage.setItem('barLedgerDataV4', JSON.stringify(ledgerData));
             document.getElementById('syncStatus').innerText = '☁️ 雲端資料同步完成！';
+            
+            // 如果在目標頁面，自動更新進度
+            if(document.getElementById('tab-target').classList.contains('active')) {
+                calculateTarget();
+            }
         } else {
             document.getElementById('syncStatus').innerText = '⚠️ 雲端資料讀取異常';
         }
@@ -198,7 +282,7 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
     const tabIndex = {
-        'tab-input': 0, 'tab-stock': 1, 'tab-fixedcost': 2, 'tab-history': 3, 'tab-maintenance': 4
+        'tab-input': 0, 'tab-stock': 1, 'tab-fixedcost': 2, 'tab-target': 3, 'tab-history': 4, 'tab-maintenance': 5
     };
     
     document.querySelectorAll('.tab')[tabIndex[tabId]].classList.add('active');
@@ -206,9 +290,117 @@ function switchTab(tabId) {
 
     if(tabId === 'tab-stock') renderStockList();
     if(tabId === 'tab-fixedcost') renderFinanceList();
+    if(tabId === 'tab-target') calculateTarget();
     if(tabId === 'tab-history') { renderMonthlyReport(); renderHistoryLog(); }
     if(tabId === 'tab-maintenance') renderMaintenanceInfo();
 }
+
+// --- 新增：營收目標功能 ---
+function autoFillCost() {
+    const monthStr = document.getElementById('targetMonth').value;
+    if(!monthStr) return alert("請先選擇目標月份！");
+    
+    let totalCost = 0;
+    // 1. 抓取該月固定成本
+    financeRecords.forEach(r => {
+        if(r.month === monthStr && r.type === 'cost') totalCost += r.amount;
+    });
+    // 2. 抓取該月進貨成本
+    ledgerData.forEach(r => {
+        if(r.date && r.date.startsWith(monthStr)) totalCost += r.totalCost;
+    });
+    
+    document.getElementById('targetCost').value = Math.round(totalCost);
+    alert(`已自動帶入 ${monthStr} 已知總成本：$${Math.round(totalCost).toLocaleString()}`);
+    calculateTarget();
+}
+
+function autoSetProfit() {
+    const cost = parseFloat(document.getElementById('targetCost').value) || 0;
+    if(cost === 0) {
+        alert("請先輸入或「自動帶入」預估總成本，才能幫您推算利潤！");
+        return;
+    }
+    // 餐飲業常見抓 30% 淨利： 營業額 = 成本 / (1 - 0.3) = 成本 / 0.7
+    const targetRevenue = cost / 0.7;
+    const targetProfit = targetRevenue - cost;
+    
+    document.getElementById('targetProfit').value = Math.round(targetProfit);
+    calculateTarget();
+}
+
+function calculateTarget() {
+    const monthStr = document.getElementById('targetMonth').value;
+    const profit = parseFloat(document.getElementById('targetProfit').value) || 0;
+    const cost = parseFloat(document.getElementById('targetCost').value) || 0;
+    const ratio = parseFloat(document.getElementById('targetRatio').value) || 2;
+
+    if(!monthStr || (profit === 0 && cost === 0)) {
+        document.getElementById('targetResultContainer').style.display = 'none';
+        return;
+    }
+
+    const totalTarget = profit + cost;
+    
+    // 計算該月平假日天數
+    const [year, month] = monthStr.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    let weekdays = 0;
+    let weekends = 0;
+
+    for(let i = 1; i <= daysInMonth; i++) {
+        const d = new Date(year, month - 1, i).getDay();
+        // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+        if(d === 5 || d === 6) weekends++; // 週五、週六算假日
+        else weekdays++; // 週日到週四算平日
+    }
+
+    // 數學公式： 總目標 = (平日天數 * 平日目標) + (假日天數 * 假日目標)
+    // 假日目標 = 平日目標 * ratio
+    // 總目標 = (平日天數 * 平日目標) + (假日天數 * 平日目標 * ratio)
+    // 平日目標 = 總目標 / (平日天數 + 假日天數 * ratio)
+    
+    const weekdayDailyTarget = totalTarget / (weekdays + weekends * ratio);
+    const weekendDailyTarget = weekdayDailyTarget * ratio;
+
+    // 更新畫面
+    document.getElementById('targetResultContainer').style.display = 'block';
+    document.getElementById('lblTargetMonth').innerText = `(${monthStr})`;
+    
+    document.getElementById('resTotalTarget').innerText = `$${Math.round(totalTarget).toLocaleString()}`;
+    document.getElementById('resCost').innerText = Math.round(cost).toLocaleString();
+    document.getElementById('resProfit').innerText = Math.round(profit).toLocaleString();
+    
+    document.getElementById('resWeekdayTarget').innerText = `$${Math.round(weekdayDailyTarget).toLocaleString()}`;
+    document.getElementById('resWeekdayCount').innerText = weekdays;
+    
+    document.getElementById('resWeekendTarget').innerText = `$${Math.round(weekendDailyTarget).toLocaleString()}`;
+    document.getElementById('resWeekendCount').innerText = weekends;
+
+    // 計算目前達成率
+    let currentRevenue = 0;
+    financeRecords.forEach(r => {
+        if(r.month === monthStr && r.type === 'revenue') currentRevenue += r.amount;
+    });
+
+    document.getElementById('resCurrentRev').innerText = `$${Math.round(currentRevenue).toLocaleString()}`;
+    document.getElementById('resTargetRev').innerText = `$${Math.round(totalTarget).toLocaleString()}`;
+
+    let progress = totalTarget > 0 ? (currentRevenue / totalTarget) * 100 : 0;
+    if(progress > 100) progress = 100;
+    
+    const bar = document.getElementById('progressBar');
+    bar.style.width = `${progress}%`;
+    
+    // 根據達成率改變顏色
+    if(progress < 50) bar.style.backgroundColor = '#e74c3c'; // 紅
+    else if(progress < 80) bar.style.backgroundColor = '#f39c12'; // 橘
+    else bar.style.backgroundColor = '#27ae60'; // 綠
+
+    document.getElementById('progressText').innerText = `${progress.toFixed(1)}%`;
+}
+// --- 營收目標功能結束 ---
 
 function renderMaintenanceInfo() {
     document.getElementById('checkLedgerCount').innerText = ledgerData.length;
@@ -431,7 +623,6 @@ function renderStockList() {
 function createStockRow(name) {
     const qty = currentStock[name] !== undefined ? parseFloat(currentStock[name]) : 0;
     
-    // 嘗試從歷史紀錄中找出該品項的單位
     const item = ledgerData.find(i => i.name === name);
     const unitStr = (item && item.unit) ? ` <span style="color:#888; font-size:0.85em;">(${item.unit})</span>` : '';
 
@@ -557,8 +748,10 @@ window.onload = function() {
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById('inputDate').value = today;
     document.getElementById('stockDate').value = today;
+    
     const thisMonth = new Date().toISOString().slice(0, 7);
     document.getElementById('financeMonth').value = thisMonth;
+    document.getElementById('targetMonth').value = thisMonth;
     
     if(CLOUD_API.includes('YOUR_NEW_DEPLOYMENT_URL_HERE')) {
         document.getElementById('syncStatus').innerText = '⚠️ 請先在程式碼中填入您的 CLOUD_API 網址';
