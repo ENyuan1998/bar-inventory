@@ -165,10 +165,10 @@
 </div>
 
 <script>
-// 已更新為您的專屬 API 網址
-const CLOUD_API = 'https://script.google.com/macros/s/AKfycbxCXpR5qkvPtLag9A-F4dYdKYEIUmSaqZEGIvlWqVMBXbG3mCoyIQzvIGOcUcF4kqWT/exec'; 
+// ⚠️⚠️⚠️ 請將下方網址替換為您剛剛「重新部署」產生的新網址 ⚠️⚠️⚠️
+const CLOUD_API = 'https://script.google.com/macros/s/AKfycbwRVFjkQv_ZbT3jbmFfR1pAGZJKimi0B6gOl5rzpaeTv7jTvoY7hf8jHmUsj8Uz3tA/exec'; 
 
-let ledgerData = JSON.parse(localStorage.getItem('barLedgerDataV3')) || [];
+let ledgerData = JSON.parse(localStorage.getItem('barLedgerDataV4')) || [];
 let currentStock = {};
 let financeRecords = []; 
 
@@ -182,7 +182,7 @@ async function fetchCloudData() {
             ledgerData = cloudRes.ledgerData || [];
             financeRecords = cloudRes.financeRecords || [];
             
-            localStorage.setItem('barLedgerDataV3', JSON.stringify(ledgerData));
+            localStorage.setItem('barLedgerDataV4', JSON.stringify(ledgerData));
             document.getElementById('syncStatus').innerText = '☁️ 雲端資料同步完成！';
         } else {
             document.getElementById('syncStatus').innerText = '⚠️ 雲端資料讀取異常';
@@ -230,7 +230,7 @@ async function manualBackup() {
 
 async function wipeTestDataAndGoLive() {
     if(!confirm("確定要清除本地緩存並重設雲端庫存歸零嗎？")) return;
-    localStorage.removeItem('barLedgerDataV3');
+    localStorage.removeItem('barLedgerDataV4');
 
     await fetch(CLOUD_API, {
         method: "POST",
@@ -256,6 +256,7 @@ async function saveAllToCloudAndStock() {
 
     cards.forEach(card => {
         const nameInput = card.querySelector('.p-name');
+        const unitInput = card.querySelector('.p-unit');
         const totalQtyInput = card.querySelector('.p-totalQty');
         const totalCostInput = card.querySelector('.p-totalCost');
         const expiryDateInput = card.querySelector('.p-expiryDate');
@@ -263,6 +264,7 @@ async function saveAllToCloudAndStock() {
         if (!nameInput) return;
 
         const name = nameInput.value.trim();
+        const unit = unitInput ? unitInput.value.trim() : '';
         const totalQty = parseFloat(totalQtyInput.value) || 0;
         const totalCost = parseFloat(totalCostInput.value) || 0;
         const expiryDate = expiryDateInput ? expiryDateInput.value : '';
@@ -279,6 +281,7 @@ async function saveAllToCloudAndStock() {
                 itemType,
                 inputDate,
                 name,
+                unit,
                 totalQty,
                 totalCost,
                 expiryDate,
@@ -341,7 +344,10 @@ function addItemCard(type) {
             <span style="font-weight:bold; color:#555;">${type==='liquor'?'🍸 酒水品項':'📦 食材/耗材品項'}</span>
             <button class="btn btn-danger" style="width:auto; margin:0; padding:4px 10px; font-size:0.85em;" onclick="document.getElementById('${cardId}').remove()">移除</button>
         </div>
-        <div class="form-group"><label>品項名稱：</label><input type="text" class="p-name" value="${type==='liquor'?'威士忌 (瓶)':'檸檬 (公斤)'}"></div>
+        <div class="grid-2">
+            <div class="form-group"><label>品項名稱：</label><input type="text" class="p-name" value="${type==='liquor'?'麥卡倫12年':'檸檬'}"></div>
+            <div class="form-group"><label>單位：</label><input type="text" class="p-unit" value="${type==='liquor'?'瓶':'kg'}" placeholder="例如: 瓶, 箱, kg"></div>
+        </div>
         <div class="grid-2">
             <div class="form-group"><label>進貨數量：</label><input type="number" class="p-totalQty" value="10" oninput="uiCalculate('${cardId}')"></div>
             <div class="form-group"><label>總進價 ($)：</label><input type="number" class="p-totalCost" value="5000" oninput="uiCalculate('${cardId}')"></div>
@@ -369,7 +375,6 @@ function renderMonthlyReport() {
     
     let reportMap = {};
     
-    // 統計進貨成本
     ledgerData.forEach(item => {
         if(!item.date) return;
         const ym = item.date.substr(0, 7);
@@ -378,7 +383,6 @@ function renderMonthlyReport() {
         if(item.type === 'supply') reportMap[ym].supply += parseFloat(item.totalCost) || 0;
     });
     
-    // 統計固定成本與營收
     financeRecords.forEach(record => {
         const ym = record.month;
         if(!reportMap[ym]) reportMap[ym] = { liquor: 0, supply: 0, fixedCost: 0, revenue: 0 };
@@ -426,9 +430,14 @@ function renderStockList() {
 
 function createStockRow(name) {
     const qty = currentStock[name] !== undefined ? parseFloat(currentStock[name]) : 0;
+    
+    // 嘗試從歷史紀錄中找出該品項的單位
+    const item = ledgerData.find(i => i.name === name);
+    const unitStr = (item && item.unit) ? ` <span style="color:#888; font-size:0.85em;">(${item.unit})</span>` : '';
+
     const div = document.createElement('div');
     div.className = 'stock-row';
-    div.innerHTML = `<span>${name}</span><input type="number" class="stock-qty-input" data-name="${name}" value="${qty}" style="width:80px; text-align:center; border:1px solid #ccc; border-radius:4px; padding:5px;">`;
+    div.innerHTML = `<span>${name}${unitStr}</span><input type="number" class="stock-qty-input" data-name="${name}" value="${qty}" style="width:80px; text-align:center; border:1px solid #ccc; border-radius:4px; padding:5px;">`;
     return div;
 }
 
@@ -437,9 +446,10 @@ function renderHistoryLog() {
     container.innerHTML = '';
     if(ledgerData.length===0) { container.innerHTML = '<p style="color:#999;text-align:center;">尚無流水帳資料</p>'; return; }
     [...ledgerData].sort((a,b)=>b.date.localeCompare(a.date)).forEach(item => {
+        const unitDisplay = item.unit ? item.unit : '未填單位';
         container.innerHTML += `<div class="history-item">
             <b>📅 ${item.date} [${item.type==='liquor'?'酒水':'食材/耗材'}] ${item.name}</b><br>
-            進貨成本: $${parseFloat(item.singleCost).toFixed(1)} (總採購量: ${item.totalQty})<br>
+            進貨成本: $${parseFloat(item.singleCost).toFixed(1)} / ${unitDisplay} (總採購量: ${item.totalQty} ${unitDisplay})<br>
             <span style="color:#e67e22; font-size:0.9em;">⏳ 保存期限: ${item.expiryDate || '未設定'}</span>
         </div>`;
     });
@@ -550,7 +560,7 @@ window.onload = function() {
     const thisMonth = new Date().toISOString().slice(0, 7);
     document.getElementById('financeMonth').value = thisMonth;
     
-    if(CLOUD_API.includes('YOUR_NEW_SCRIPT_ID_HERE')) {
+    if(CLOUD_API.includes('YOUR_NEW_DEPLOYMENT_URL_HERE')) {
         document.getElementById('syncStatus').innerText = '⚠️ 請先在程式碼中填入您的 CLOUD_API 網址';
         document.getElementById('syncStatus').style.backgroundColor = '#fdedec';
         document.getElementById('syncStatus').style.color = '#c0392b';
